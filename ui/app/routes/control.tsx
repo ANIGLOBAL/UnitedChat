@@ -258,8 +258,8 @@ export default function Control() {
             </h2>
             <div className="mt-3 space-y-2">
               <ToggleRow
-                label="Cho phép tạo không gian"
-                description="Tắt để chặn mọi người tạo không gian mới."
+                label="Cho phép tạo nhóm chat"
+                description="Tắt để chặn tạo nhóm chat mới."
                 checked={stats?.allowGroupCreation ?? true}
                 disabled={busy}
                 onChange={(enabled) =>
@@ -267,8 +267,8 @@ export default function Control() {
                 }
               />
               <ToggleRow
-                label="Cho phép tạo nhóm chat"
-                description="Tắt để chặn tạo nhóm chat mới."
+                label="Cho phép tạo không gian"
+                description="Tắt để chặn mọi người tạo không gian mới."
                 checked={stats?.allowSpaceCreation ?? true}
                 disabled={busy}
                 onChange={(enabled) =>

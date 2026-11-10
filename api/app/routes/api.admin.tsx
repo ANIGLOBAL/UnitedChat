@@ -37,7 +37,7 @@ async function handle({ request, context }: Route.LoaderArgs | Route.ActionArgs)
           'SELECT "value" FROM "setting" WHERE "key" = \'allow_group_creation\' LIMIT 1',
         ).first<{ value: string }>(),
         env.DB.prepare(
-          'SELECT "value" FROM "setting" WHERE "key" = \'allow_space_creation\' LIMIT 1',
+          'SELECT "value" FROM "setting" WHERE "key" = \'group_space_creation_enabled\' LIMIT 1',
         ).first<{ value: string }>(),
       ]);
       return Response.json({
