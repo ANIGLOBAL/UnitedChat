@@ -1,0 +1,42 @@
+{
+	"$schema": "node_modules/wrangler/config-schema.json",
+	"name": "unitedchat-api",
+	"compatibility_date": "2026-10-19",
+	"compatibility_flags": ["nodejs_compat"],
+	"main": "./workers/app.ts",
+	"vars": {
+		"APP_ORIGIN": "https://unitedchat-api.aniviet.workers.dev",
+		"UI_ORIGIN": "https://aniglobal.github.io",
+		"TURNSTILE_SITE_KEY": "",
+		"B2_BUCKET_ID": "47dca5febf1dc809a11d0f16",
+		"B2_BUCKET_NAME": "UnitedChat",
+		"FREE_STORAGE_BYTES": "524288000",
+		"IMAGE_MAX_BYTES": "20971520",
+		"FILE_MAX_BYTES": "20971520",
+		"B2_DOWNLOAD_TTL_SECONDS": "1800"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "unitedchat",
+			"database_id": "f8761dbb-2931-41a2-a0fb-19e13b1924a6",
+			"migrations_dir": "migrations"
+		}
+	],
+	"durable_objects": {
+		"bindings": [
+			{ "name": "CONVERSATION_ROOM", "class_name": "ConversationRoomDO" },
+			{ "name": "USER_PRESENCE", "class_name": "UserPresenceDO" }
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": ["ConversationRoomDO", "UserPresenceDO"]
+		}
+	],
+	"observability": {
+		"enabled": true
+	},
+	"upload_source_maps": false
+}

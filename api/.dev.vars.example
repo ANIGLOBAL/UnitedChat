@@ -1,0 +1,25 @@
+# Local dev secrets (git-ignored). Production values go through
+# `wrangler secret put <NAME>` — never through vars or the repo.
+
+# Local origins (override production vars from wrangler.jsonc).
+APP_ORIGIN="http://localhost:5173"
+UI_ORIGIN="http://localhost:5174"
+
+# Session signing (authentication).
+SESSION_SIGNING_SECRET="set-a-long-random-string"
+
+# TOTP secret encryption (2FA). Separate key from the session secret.
+TOTP_ENCRYPTION_KEY="set-another-long-random-string"
+
+# Conversation key envelope encryption (DM/Group keys). 32-128 hex characters.
+CONVERSATION_KEY_ENCRYPTION_KEY="set-a-64-char-hex-string"
+
+# B2 credentials restricted to the UnitedChat bucket. Never commit real keys.
+B2_KEY_ID="owner-supplies"
+B2_APPLICATION_KEY="owner-supplies"
+
+# Turnstile server secret. Leave unset locally to skip verification.
+TURNSTILE_SECRET_KEY=""
+
+# Web Push VAPID private key (notifications).
+WEB_PUSH_VAPID_PRIVATE_KEY="owner-supplies"
