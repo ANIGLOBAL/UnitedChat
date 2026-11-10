@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
 
-// Public widget site key for chatindex.aniviet.workers.dev. The matching
+// Public Turnstile widget site key shared across ANI pages. The matching
 // secret lives in the Worker as TURNSTILE_SECRET_KEY.
-export const TURNSTILE_SITE_KEY = "0x4AAAAAAFu6hbY1Si8CPJvn";
+export const TURNSTILE_SITE_KEY = "0x4AAAAAAEQz9I-TXTQoVuii";
 
 declare global {
   interface Window {
