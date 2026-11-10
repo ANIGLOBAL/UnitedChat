@@ -7,7 +7,7 @@
 	"vars": {
 		"APP_ORIGIN": "https://unitedchat-api.aniviet.workers.dev",
 		"UI_ORIGIN": "https://aniglobal.github.io",
-		"TURNSTILE_SITE_KEY": "",
+		"TURNSTILE_SITE_KEY": "0x4AAAAAAFu6hbY1Si8CPJvn",
 		"B2_BUCKET_ID": "47dca5febf1dc809a11d0f16",
 		"B2_BUCKET_NAME": "UnitedChat",
 		"FREE_STORAGE_BYTES": "524288000",
