@@ -1,5 +1,5 @@
 import { betterAuth } from "better-auth";
-import { twoFactor } from "better-auth/plugins";
+import { bearer, twoFactor } from "better-auth/plugins";
 
 import type { AppEnv } from "./env";
 
@@ -37,7 +37,7 @@ function buildAuth(env: AppEnv) {
     secret: env.SESSION_SIGNING_SECRET,
     database: env.DB,
     trustedOrigins: [...trustedOrigins],
-    plugins: [twoFactor({ issuer: "UnitedChat" })],
+    plugins: [twoFactor({ issuer: "UnitedChat" }), bearer()],
     emailAndPassword: {
       enabled: true,
       minPasswordLength: 8,
@@ -51,6 +51,7 @@ function buildAuth(env: AppEnv) {
         bio: { type: "string", required: false, input: true },
         role: { type: "string", required: false, defaultValue: "user", input: false },
         status: { type: "string", required: false, defaultValue: "active", input: false },
+        bannerFileId: { type: "string", required: false, input: false },
         // Premium tiers (ChatSpace profile features).
         plan: { type: "string", required: false, defaultValue: "free", input: false },
       },

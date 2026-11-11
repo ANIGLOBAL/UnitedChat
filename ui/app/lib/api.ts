@@ -15,6 +15,47 @@ function config(): RuntimeConfig {
   );
 }
 
+const AUTH_TOKEN_KEY = "unitedchat.auth-token";
+const MEDIA_TOKEN_KEY = "unitedchat.media-token";
+
+export function storedAuthToken() {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(AUTH_TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setStoredAuthToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) window.localStorage.setItem(AUTH_TOKEN_KEY, token);
+    else window.localStorage.removeItem(AUTH_TOKEN_KEY);
+  } catch {
+    // private mode / storage disabled
+  }
+}
+
+export function storedMediaToken() {
+  if (typeof window === "undefined") return "";
+  try {
+    return window.localStorage.getItem(MEDIA_TOKEN_KEY) ?? "";
+  } catch {
+    return "";
+  }
+}
+
+export function setStoredMediaToken(token: string | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (token) window.localStorage.setItem(MEDIA_TOKEN_KEY, token);
+    else window.localStorage.removeItem(MEDIA_TOKEN_KEY);
+  } catch {
+    // private mode / storage disabled
+  }
+}
+
 export function apiBase() {
   const value = config().api;
   if (value && typeof value === "string") return value.replace(/\/+$/, "");
@@ -44,11 +85,15 @@ export function turnstileSiteKey() {
 
 export function wsUrl(conversationId: string) {
   const base = apiBase().replace(/^http/, "ws");
-  return `${base}/api/ws/${conversationId}?c=${encodeURIComponent(conversationId)}`;
+  const media = storedMediaToken();
+  const suffix = media ? `&mt=${encodeURIComponent(media)}` : "";
+  return `${base}/api/ws/${conversationId}?c=${encodeURIComponent(conversationId)}${suffix}`;
 }
 
 export function fileUrl(fileId: string) {
-  return `${apiBase()}/api/files/${fileId}`;
+  const media = storedMediaToken();
+  const suffix = media ? `?mt=${encodeURIComponent(media)}` : "";
+  return `${apiBase()}/api/files/${encodeURIComponent(fileId)}${suffix}`;
 }
 
 export async function api<T = unknown>(
@@ -56,15 +101,19 @@ export async function api<T = unknown>(
   init?: RequestInit,
 ): Promise<ApiResult<T>> {
   const wantsJson = !(init?.body instanceof FormData);
+  const headers = new Headers(init?.headers);
+  if (wantsJson && init?.body && !headers.has("content-type")) {
+    headers.set("content-type", "application/json");
+  }
+  const token = storedAuthToken();
+  if (token) headers.set("authorization", `Bearer ${token}`);
+
   let response: Response;
   try {
     response = await fetch(`${apiBase()}${path}`, {
       credentials: "include",
       ...init,
-      headers: {
-        ...(wantsJson && init?.body ? { "content-type": "application/json" } : {}),
-        ...(init?.headers ?? {}),
-      },
+      headers,
     });
   } catch {
     return {
@@ -235,8 +284,18 @@ export type FileRow = {
 };
 
 export async function getMe(): Promise<MiniUser | null> {
-  const result = await api<{ user: MiniUser }>("/api/me");
-  return result.ok ? result.data.user : null;
+  const result = await api<{ user: MiniUser; mediaToken?: string }>("/api/me");
+  if (!result.ok) {
+    if (result.status === 401) {
+      setStoredAuthToken(null);
+      setStoredMediaToken(null);
+    }
+    return null;
+  }
+  if (typeof result.data.mediaToken === "string") {
+    setStoredMediaToken(result.data.mediaToken);
+  }
+  return result.data.user;
 }
 
 export async function uploadFile(file: File): Promise<ApiResult<Attachment>> {

@@ -131,18 +131,27 @@ export default {
         return new Response("Web Socket origin denied.", { status: 403 });
       }
 
-      const [{ getSession }, { isParticipantDb }] = await Promise.all([
+      const [{ getSession }, { isParticipantDb }, { verifyMediaToken }] = await Promise.all([
         import("../app/lib/auth.server"),
         import("../app/lib/conversation-db"),
+        import("../app/lib/media-token.server"),
       ]);
       const session = await getSession(appEnv, request);
-      if (!session) {
+      let me = session ? String(session.user.id) : "";
+      if (!me) {
+        me =
+          (await verifyMediaToken(
+            appEnv.SESSION_SIGNING_SECRET,
+            url.searchParams.get("mt"),
+          )) ?? "";
+      }
+      if (!me) {
         return new Response("Sign in first.", { status: 401 });
       }
       const conversationId = wsMatch[1];
       if (
-        !(await isParticipantDb(appEnv, conversationId, String(session.user.id))) &&
-        !(await isSpaceMember(appEnv, conversationId, String(session.user.id)))
+        !(await isParticipantDb(appEnv, conversationId, me)) &&
+        !(await isSpaceMember(appEnv, conversationId, me))
       ) {
         return new Response("Not found.", { status: 404 });
       }

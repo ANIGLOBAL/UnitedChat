@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router";
 
 import { Chat, Lock, Logo, Sparkles } from "~/components/icons";
 import { Button, inputClass, labelClass } from "~/components/ui";
-import { api } from "~/lib/api";
+import { api, setStoredAuthToken } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 import { useTurnstile } from "~/lib/use-turnstile";
 
@@ -36,7 +36,16 @@ export default function SignIn() {
       setError(answer.status === 401 ? "Sai email hoặc mật khẩu." : answer.error);
       return;
     }
-    await refresh();
+    const sessionToken = (answer.data as { token?: unknown }).token;
+    if (typeof sessionToken === "string" && sessionToken) {
+      setStoredAuthToken(sessionToken);
+    }
+    const me = await refresh();
+    if (!me) {
+      setBusy(false);
+      setError("Đăng nhập được nhưng trình duyệt không lưu phiên. Hãy cho phép cookie cho trang này rồi thử lại.");
+      return;
+    }
     navigate("/", { replace: true });
   }
 

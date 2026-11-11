@@ -1,4 +1,5 @@
 import { authErrorMessage, createAuth, getSession } from "../lib/auth.server";
+import { createMediaToken } from "../lib/media-token.server";
 import { verifyPassword } from "better-auth/crypto";
 import { b2DeleteFileVersion } from "../lib/b2.server";
 import type { AppEnv } from "../lib/env";
@@ -273,7 +274,11 @@ async function handle({ request, context }: Route.LoaderArgs | Route.ActionArgs)
     return Response.json({ ok: true });
   }
 
-  return Response.json({ user: publicUser(session.user as Record<string, unknown>) });
+  const mediaToken = await createMediaToken(
+    env.SESSION_SIGNING_SECRET,
+    String(session.user.id),
+  );
+  return Response.json({ user: publicUser(session.user as Record<string, unknown>), mediaToken });
 }
 
 export function loader(args: Route.LoaderArgs) {

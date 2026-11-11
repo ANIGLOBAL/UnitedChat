@@ -7,7 +7,7 @@ import {
   useState,
 } from "react";
 
-import { api, getMe, type MiniUser } from "./api";
+import { api, getMe, setStoredAuthToken, setStoredMediaToken, type MiniUser } from "./api";
 
 type AuthContextValue = {
   user: MiniUser | null;
@@ -52,6 +52,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = useCallback(async () => {
     await api("/api/auth/sign-out", { method: "POST", body: JSON.stringify({}) });
+    setStoredAuthToken(null);
+    setStoredMediaToken(null);
     setUser(null);
     window.dispatchEvent(new Event("unitedchat:auth"));
   }, []);

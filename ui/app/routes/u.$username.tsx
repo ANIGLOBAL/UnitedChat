@@ -99,7 +99,7 @@ export default function PublicProfilePage() {
           )}
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/50 to-transparent" />
         </div>
-        <div className="px-5 pb-6">
+        <div className="relative z-10 px-5 pb-6">
           <div className="-mt-12 flex items-end gap-4">
             <Avatar
               name={profile.name || profile.username}

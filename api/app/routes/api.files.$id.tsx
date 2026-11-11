@@ -1,4 +1,5 @@
 import { getSession } from "../lib/auth.server";
+import { verifyMediaToken } from "../lib/media-token.server";
 import type { AppEnv } from "../lib/env";
 import { envContext } from "../lib/env-context";
 import { B2Error, b2AuthorizedDownloadUrl, b2DeleteFileVersion } from "../lib/b2.server";
@@ -34,13 +35,17 @@ function ownerAccess(env: AppEnv, row: FileRow | null, me: string) {
 async function handle({ request, params, context }: Route.LoaderArgs | Route.ActionArgs) {
   const env = context.get(envContext) as AppEnv;
   const session = await getSession(env, request);
-  if (!session) return Response.json({ error: "Sign in first." }, { status: 401 });
+  const url = new URL(request.url);
+  let me = session ? String(session.user.id) : "";
+  if (!me) {
+    me = (await verifyMediaToken(env.SESSION_SIGNING_SECRET, url.searchParams.get("mt"))) ?? "";
+  }
+  if (!me) return Response.json({ error: "Sign in first." }, { status: 401 });
 
   const fileId = String((params as { id?: string }).id ?? "");
   if (!fileId) return Response.json({ error: "Not found." }, { status: 404 });
   const row = await loadFile(env, fileId);
   if (!row) return Response.json({ error: "Not found." }, { status: 404 });
-  const me = String(session.user.id);
 
   // Download: owner, conversation participant (via fileShare), or admin.
   if (request.method === "GET") {
