@@ -40,6 +40,7 @@ import {
   type Attachment,
   type JoinRequest,
   type Message,
+  type MessageDeleteScope,
   type PublicSpace,
   type SpaceMember,
   type SpaceMeta,
@@ -173,6 +174,8 @@ export default function GroupPage() {
         const payload = JSON.parse(String(event.data)) as {
           type?: string;
           message?: Message;
+          messageId?: string;
+          userId?: string;
         };
         if ((payload.type === "message" || payload.type === "msg") && payload.message) {
           const incoming = { ...payload.message, mine: payload.message.senderId === meId };
@@ -182,6 +185,24 @@ export default function GroupPage() {
             lastSeq.current = next.length ? next[next.length - 1].seq : 0;
             return next;
           });
+        }
+        if (payload.type === "message-deleted" && payload.messageId) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === payload.messageId
+                ? { ...message, body: "", attachment: null, deletedForEveryone: true }
+                : message,
+            ),
+          );
+        }
+        if (
+          payload.type === "message-hidden" &&
+          payload.messageId &&
+          payload.userId === meId
+        ) {
+          setMessages((current) =>
+            current.filter((message) => message.id !== payload.messageId),
+          );
         }
       } catch {
         // ignore malformed frames
@@ -284,6 +305,35 @@ export default function GroupPage() {
     void api(`/api/spaces/${encodeURIComponent(groupId)}/messages/read`, {
       method: "PUT",
     });
+    return true;
+  }
+
+  async function deleteMessage(message: Message, scope: MessageDeleteScope) {
+    const answer = await api(
+      `/api/spaces/${encodeURIComponent(groupId)}/messages/${encodeURIComponent(
+        message.id,
+      )}?scope=${scope}`,
+      { method: "DELETE" },
+    );
+    if (!answer.ok) {
+      toast.push(answer.error, "error");
+      return false;
+    }
+    if (scope === "me") {
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+    } else {
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === message.id
+            ? { ...item, body: "", attachment: null, deletedForEveryone: true }
+            : item,
+        ),
+      );
+    }
+    toast.push(
+      scope === "everyone" ? "Đã xóa tin nhắn ở mọi người." : "Đã xóa tin nhắn ở tôi.",
+      "success",
+    );
     return true;
   }
 
@@ -605,6 +655,7 @@ export default function GroupPage() {
             meId={meId}
             people={participants}
             showSenderNames
+            onDeleteMessage={deleteMessage}
             empty={
               <EmptyState
                 icon={<Hash size={24} />}

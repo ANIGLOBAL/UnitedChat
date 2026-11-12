@@ -5,6 +5,10 @@ export default [
   route("api/me", "routes/api.me.tsx"),
   route("api/users/:username", "routes/api.users.$username.tsx"),
   route("api/conversations", "routes/api.conversations.tsx"),
+  route(
+    "api/conversations/:id/messages/:messageId",
+    "routes/api.conversations.$id.messages.$messageId.tsx",
+  ),
   route("api/conversations/:id", "routes/api.conversations.$id.tsx"),
   route("api/files", "routes/api.files.tsx"),
   route("api/files/:id", "routes/api.files.$id.tsx"),

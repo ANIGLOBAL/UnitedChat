@@ -166,6 +166,8 @@ export type Attachment = {
   size: number;
 };
 
+export type MessageDeleteScope = "me" | "everyone";
+
 export type Message = {
   seq: number;
   id: string;
@@ -175,6 +177,8 @@ export type Message = {
   body: string;
   attachment: Attachment | null;
   sentAt: string;
+  deletedForEveryone?: boolean;
+  deletedAt?: string | null;
   mine?: boolean;
 };
 
@@ -191,7 +195,12 @@ export type Conversation = {
   title: string | null;
   participants: Participant[];
   unread: boolean;
-  lastMessage: { body: string; sentAt: string; senderId: string } | null;
+  lastMessage: {
+    body: string;
+    sentAt: string;
+    senderId: string;
+    deletedForEveryone?: boolean;
+  } | null;
   createdAt: string;
   updatedAt: string;
   lastReadAt?: string | null;

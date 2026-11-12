@@ -242,7 +242,9 @@ export default function Home() {
                           </div>
                           <p className="truncate text-[12px] text-slate-500 dark:text-slate-400">
                             {conversation.lastMessage
-                              ? conversation.lastMessage.body || "Đã gửi một tệp đính kèm"
+                              ? conversation.lastMessage.deletedForEveryone
+                                ? "Tin nhắn đã được xóa"
+                                : conversation.lastMessage.body || "Đã gửi một tệp đính kèm"
                               : "Chưa có tin nhắn"}
                           </p>
                         </div>

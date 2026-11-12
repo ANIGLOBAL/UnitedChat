@@ -68,8 +68,15 @@ async function handle({
     // polling passes after=<lastSeq> and receives only what's new.
     const history =
       afterSeq === 0
-        ? (await stub.history(conversationId, 0, 2147483647)).slice(-limit)
-        : await stub.history(conversationId, afterSeq, limit);
+        ? (await stub.history(conversationId, 0, 2147483647, String(session.user.id))).slice(
+            -limit,
+          )
+        : await stub.history(
+            conversationId,
+            afterSeq,
+            limit,
+            String(session.user.id),
+          );
 
     // Sender display names for the batch.
     const senderIds = [...new Set(history.map((m) => m.senderId))];
@@ -100,6 +107,7 @@ async function handle({
         body: m.body,
         attachment: m.attachment,
         sentAt: m.sentAt,
+        deletedForEveryone: m.deletedForEveryone,
         mine: m.senderId === session.user.id,
       })),
     });

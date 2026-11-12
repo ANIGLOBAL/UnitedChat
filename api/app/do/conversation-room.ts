@@ -14,6 +14,7 @@ type StoredMessage = {
   bodyCipher: string;
   attCipher: string | null;
   sentAt: string;
+  deletedAt: string | null;
 };
 
 /** Attachment metadata carried by a message (file ID reference only). */
@@ -28,6 +29,7 @@ export type MessageAttachment = {
 type PublicMessage = Omit<StoredMessage, "bodyCipher" | "attCipher"> & {
   body: string;
   attachment: MessageAttachment | null;
+  deletedForEveryone: boolean;
 };
 
 /**
@@ -54,7 +56,9 @@ export class ConversationRoomDO extends DurableObject<AppEnv> {
           senderId TEXT NOT NULL,
           bodyCipher TEXT NOT NULL,
           attCipher TEXT,
-          sentAt TEXT NOT NULL
+          sentAt TEXT NOT NULL,
+          deletedAt TEXT,
+          deletedBy TEXT
         )`,
       );
       const columns = this.ctx.storage.sql
@@ -63,6 +67,24 @@ export class ConversationRoomDO extends DurableObject<AppEnv> {
       if (!columns.some((col) => col.name === "attCipher")) {
         this.ctx.storage.sql.exec(`ALTER TABLE messages ADD COLUMN attCipher TEXT`);
       }
+      if (!columns.some((col) => col.name === "deletedAt")) {
+        this.ctx.storage.sql.exec(`ALTER TABLE messages ADD COLUMN deletedAt TEXT`);
+      }
+      if (!columns.some((col) => col.name === "deletedBy")) {
+        this.ctx.storage.sql.exec(`ALTER TABLE messages ADD COLUMN deletedBy TEXT`);
+      }
+      this.ctx.storage.sql.exec(
+        `CREATE TABLE IF NOT EXISTS messageDeletion (
+          messageId TEXT NOT NULL,
+          userId TEXT NOT NULL,
+          deletedAt TEXT NOT NULL,
+          PRIMARY KEY (messageId, userId)
+        )`,
+      );
+      this.ctx.storage.sql.exec(
+        `CREATE INDEX IF NOT EXISTS messageDeletion_userId_idx
+           ON messageDeletion (userId)`,
+      );
     })();
     return this.schemaReady;
   }
@@ -91,16 +113,21 @@ export class ConversationRoomDO extends DurableObject<AppEnv> {
     rows: unknown[],
     decryptKey: CryptoKey,
   ): Promise<PublicMessage[]> {
-    const list = rows as unknown as {
-      seq: number;
-      id: string;
-      senderId: string;
-      bodyCipher: string;
-      attCipher: string | null;
-      sentAt: string;
-    }[];
+    const list = rows as unknown as StoredMessage[];
     return Promise.all(
       list.map(async (row) => {
+        if (row.deletedAt) {
+          return {
+            seq: row.seq,
+            id: row.id,
+            senderId: row.senderId,
+            sentAt: row.sentAt,
+            deletedAt: row.deletedAt,
+            deletedForEveryone: true,
+            body: "",
+            attachment: null,
+          };
+        }
         let attachment: MessageAttachment | null = null;
         if (row.attCipher) {
           try {
@@ -116,6 +143,8 @@ export class ConversationRoomDO extends DurableObject<AppEnv> {
           id: row.id,
           senderId: row.senderId,
           sentAt: row.sentAt,
+          deletedAt: null,
+          deletedForEveryone: false,
           body: await openMessageBody(decryptKey, row.bodyCipher),
           attachment,
         };
@@ -182,6 +211,7 @@ export class ConversationRoomDO extends DurableObject<AppEnv> {
         body,
         attachment: attachment ?? null,
         sentAt,
+        deletedForEveryone: false,
       },
     });
     return { seq, body, attachment: attachment ?? null };
@@ -192,32 +222,111 @@ export class ConversationRoomDO extends DurableObject<AppEnv> {
     conversationId: string,
     afterSeq: number,
     limit: number,
+    viewerId = "",
   ): Promise<PublicMessage[]> {
     await this.ready();
     const decryptKey = await this.key(conversationId);
-    const rows = this.ctx.storage.sql
-      .exec(
-        `SELECT seq, id, senderId, bodyCipher, attCipher, sentAt
-         FROM messages WHERE seq > ? ORDER BY seq ASC LIMIT ?`,
-        afterSeq,
-        limit,
-      )
-      .toArray();
+    const rows = viewerId
+      ? this.ctx.storage.sql
+          .exec(
+            `SELECT seq, id, senderId, bodyCipher, attCipher, sentAt, deletedAt
+               FROM messages
+              WHERE seq > ?
+                AND id NOT IN (
+                  SELECT messageId FROM messageDeletion WHERE userId = ?
+                )
+              ORDER BY seq ASC LIMIT ?`,
+            afterSeq,
+            viewerId,
+            limit,
+          )
+          .toArray()
+      : this.ctx.storage.sql
+          .exec(
+            `SELECT seq, id, senderId, bodyCipher, attCipher, sentAt, deletedAt
+               FROM messages WHERE seq > ? ORDER BY seq ASC LIMIT ?`,
+            afterSeq,
+            limit,
+          )
+          .toArray();
     return this.readAll(rows, decryptKey);
   }
 
   /** Latest message preview for the D1 inbox listing. */
-  async latest(conversationId: string): Promise<PublicMessage | null> {
+  async latest(conversationId: string, viewerId = ""): Promise<PublicMessage | null> {
     await this.ready();
     const decryptKey = await this.key(conversationId);
-    const rows = this.ctx.storage.sql
-      .exec(
-        `SELECT seq, id, senderId, bodyCipher, attCipher, sentAt
-         FROM messages ORDER BY seq DESC LIMIT 1`,
-      )
-      .toArray();
+    const rows = viewerId
+      ? this.ctx.storage.sql
+          .exec(
+            `SELECT seq, id, senderId, bodyCipher, attCipher, sentAt, deletedAt
+               FROM messages
+              WHERE id NOT IN (
+                SELECT messageId FROM messageDeletion WHERE userId = ?
+              )
+              ORDER BY seq DESC LIMIT 1`,
+            viewerId,
+          )
+          .toArray()
+      : this.ctx.storage.sql
+          .exec(
+            `SELECT seq, id, senderId, bodyCipher, attCipher, sentAt, deletedAt
+               FROM messages ORDER BY seq DESC LIMIT 1`,
+          )
+          .toArray();
     const all = await this.readAll(rows, decryptKey);
     return all[0] ?? null;
+  }
+
+  /**
+   * Deletes one message for the caller or for everyone. Only the original
+   * sender may remove a message from every participant's view.
+   */
+  async deleteMessage(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    scope: "me" | "everyone",
+  ): Promise<{ ok: boolean; error?: string }> {
+    await this.ready();
+    const row = this.ctx.storage.sql
+      .exec(
+        `SELECT senderId, deletedAt FROM messages WHERE id = ? LIMIT 1`,
+        messageId,
+      )
+      .toArray()[0] as { senderId: string; deletedAt: string | null } | undefined;
+    if (!row) return { ok: false, error: "Không tìm thấy tin nhắn." };
+
+    const now = new Date().toISOString().replace("T", " ").slice(0, 19);
+
+    if (scope === "everyone") {
+      if (row.senderId !== userId) {
+        return { ok: false, error: "Chỉ người gửi mới xóa được ở mọi người." };
+      }
+      if (!row.deletedAt) {
+        this.ctx.storage.sql.exec(
+          `UPDATE messages
+              SET bodyCipher = '', attCipher = NULL, deletedAt = ?, deletedBy = ?
+            WHERE id = ?`,
+          now,
+          userId,
+          messageId,
+        );
+      }
+      this.broadcast({ type: "message-deleted", messageId, deletedBy: userId });
+      return { ok: true };
+    }
+
+    this.ctx.storage.sql.exec(
+      `INSERT OR IGNORE INTO messageDeletion (messageId, userId, deletedAt)
+       VALUES (?, ?, ?)`,
+      messageId,
+      userId,
+      now,
+    );
+    this.broadcast({ type: "message-hidden", messageId, userId });
+    void conversationId;
+    return { ok: true };
   }
 
   /** Number of stored messages after `afterSeq` (for unread counters). */

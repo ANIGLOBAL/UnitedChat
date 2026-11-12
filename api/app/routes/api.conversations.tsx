@@ -84,7 +84,7 @@ async function handle({ request, context }: Route.LoaderArgs | Route.ActionArgs)
         env.CONVERSATION_ROOM.idFromName(conversationId),
       );
       const lastMessage = await stub
-        .latest(conversationId)
+        .latest(conversationId, me)
         .catch(() => null);
       conversations.push({
         id: conversationId,
@@ -101,6 +101,7 @@ async function handle({ request, context }: Route.LoaderArgs | Route.ActionArgs)
               body: lastMessage.body,
               sentAt: lastMessage.sentAt,
               senderId: lastMessage.senderId,
+              deletedForEveryone: lastMessage.deletedForEveryone,
             }
           : null,
       });

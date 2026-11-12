@@ -21,6 +21,7 @@ interface RoomStub {
     conversationId: string,
     afterSeq: number,
     limit: number,
+    viewerId?: string,
   ): Promise<
     Array<{
       seq: number;
@@ -29,8 +30,15 @@ interface RoomStub {
       body: string;
       attachment: RoomAttachment;
       sentAt: string;
+      deletedForEveryone: boolean;
     }>
   >;
+  deleteMessage(
+    conversationId: string,
+    messageId: string,
+    userId: string,
+    scope: "me" | "everyone",
+  ): Promise<{ ok: boolean; error?: string }>;
   append(
     conversationId: string,
     messageId: string,
@@ -439,8 +447,8 @@ async function handle({ request, params, context }: Route.LoaderArgs | Route.Act
       const limit = Math.min(Number(url.searchParams.get("limit") ?? "80") || 80, 200);
       const history =
         afterSeq === 0
-          ? (await stub.history(space.conversationId, 0, 2147483647)).slice(-limit)
-          : await stub.history(space.conversationId, afterSeq, limit);
+          ? (await stub.history(space.conversationId, 0, 2147483647, me)).slice(-limit)
+          : await stub.history(space.conversationId, afterSeq, limit, me);
 
       const senderIds = [...new Set(history.map((m) => m.senderId))];
       const senders: Record<string, { name: string; username: string }> = {};
@@ -466,6 +474,7 @@ async function handle({ request, params, context }: Route.LoaderArgs | Route.Act
           body: m.body,
           attachment: m.attachment,
           sentAt: m.sentAt,
+          deletedForEveryone: m.deletedForEveryone,
           mine: m.senderId === me,
         })),
       });
@@ -479,6 +488,30 @@ async function handle({ request, params, context }: Route.LoaderArgs | Route.Act
         .bind(now, groupId, me)
         .run();
       return Response.json({ ok: true, lastReadAt: now });
+    }
+
+    const deleteMatch = rest.match(/^messages\/([0-9a-fA-F-]{36})$/);
+    if (deleteMatch && request.method === "DELETE") {
+      const scope = new URL(request.url).searchParams.get("scope");
+      if (scope !== "me" && scope !== "everyone") {
+        return Response.json(
+          { error: "scope phải là me hoặc everyone." },
+          { status: 400 },
+        );
+      }
+      const result = await stub.deleteMessage(
+        space.conversationId,
+        deleteMatch[1],
+        me,
+        scope,
+      );
+      if (!result.ok) {
+        return Response.json(
+          { error: result.error ?? "Không xóa được tin nhắn." },
+          { status: result.error?.includes("người gửi") ? 403 : 404 },
+        );
+      }
+      return Response.json({ ok: true, messageId: deleteMatch[1], scope });
     }
 
     if (rest === "messages" && request.method === "POST") {

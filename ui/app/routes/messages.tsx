@@ -251,7 +251,9 @@ export default function MessagesLayout() {
                               )}
                             >
                               {conversation.lastMessage
-                                ? conversation.lastMessage.body || "Đã gửi tệp đính kèm"
+                                ? conversation.lastMessage.deletedForEveryone
+                                  ? "Tin nhắn đã được xóa"
+                                  : conversation.lastMessage.body || "Đã gửi tệp đính kèm"
                                 : "Chưa có tin nhắn"}
                             </p>
                           </div>

@@ -12,6 +12,7 @@ import {
   type Attachment,
   type ConversationDetail,
   type Message,
+  type MessageDeleteScope,
 } from "~/lib/api";
 import { useAuth } from "~/lib/auth";
 
@@ -88,9 +89,29 @@ export default function MessageThread() {
         const payload = JSON.parse(String(event.data)) as {
           type?: string;
           message?: Message;
+          messageId?: string;
+          userId?: string;
         };
         if ((payload.type === "message" || payload.type === "msg") && payload.message) {
           append({ ...payload.message, mine: payload.message.senderId === meId });
+        }
+        if (payload.type === "message-deleted" && payload.messageId) {
+          setMessages((current) =>
+            current.map((message) =>
+              message.id === payload.messageId
+                ? { ...message, body: "", attachment: null, deletedForEveryone: true }
+                : message,
+            ),
+          );
+        }
+        if (
+          payload.type === "message-hidden" &&
+          payload.messageId &&
+          payload.userId === meId
+        ) {
+          setMessages((current) =>
+            current.filter((message) => message.id !== payload.messageId),
+          );
         }
       } catch {
         // ignore malformed frames
@@ -165,6 +186,35 @@ export default function MessageThread() {
     }
     append({ ...answer.data.message, mine: true });
     void api(`/api/conversations/${encodeURIComponent(id)}`, { method: "PUT" });
+    return true;
+  }
+
+  async function deleteMessage(message: Message, scope: MessageDeleteScope) {
+    const answer = await api(
+      `/api/conversations/${encodeURIComponent(id)}/messages/${encodeURIComponent(
+        message.id,
+      )}?scope=${scope}`,
+      { method: "DELETE" },
+    );
+    if (!answer.ok) {
+      toast.push(answer.error, "error");
+      return false;
+    }
+    if (scope === "me") {
+      setMessages((current) => current.filter((item) => item.id !== message.id));
+    } else {
+      setMessages((current) =>
+        current.map((item) =>
+          item.id === message.id
+            ? { ...item, body: "", attachment: null, deletedForEveryone: true }
+            : item,
+        ),
+      );
+    }
+    toast.push(
+      scope === "everyone" ? "Đã xóa tin nhắn ở mọi người." : "Đã xóa tin nhắn ở tôi.",
+      "success",
+    );
     return true;
   }
 
@@ -246,6 +296,7 @@ export default function MessageThread() {
         meId={meId}
         people={detail.participants}
         showSenderNames={isGroup}
+        onDeleteMessage={deleteMessage}
         empty={
           <EmptyState
             icon={<Chat size={24} />}
